@@ -1,30 +1,30 @@
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
+import hre, { ethers } from "hardhat";
 import { expect } from "chai";
 import keccak256 from "keccak256";
-import { Contract } from "ethers";
-import hre, { ethers } from "hardhat";
-import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 
-describe("MerkleAirdrop", function () {
-  // Function that deploys the ERC20 token.
+const helpers = require("@nomicfoundation/hardhat-network-helpers");
+const { setBalance } = require("@nomicfoundation/hardhat-network-helpers");
+
+describe("MerkleNFTAirdrop", function () {
+  // Function that deploys the ERC20 token
+
   async function deployToken() {
-    const roseToken = await hre.ethers.getContractFactory("RoseToken");
-    const token = await roseToken.deploy();
+    const superFranky = await hre.ethers.getContractFactory("SuperFranky");
+    const token = await superFranky.deploy();
 
-    // return token deployment properties
     return { token };
   }
 
-  // Function to deploy the Airdrop contract
-  async function deployContract() {
-    // Get users to populate airdropList
-    const [owner, addr1, addr2, addr3, addr4] = await ethers.getSigners();
+  // Function to deploy the NFTAirdrop contract
 
-    const airdropList = [
-      [addr1.address, ethers.parseEther("100")],
-      [addr2.address, ethers.parseEther("200")],
-      [addr3.address, ethers.parseEther("300")],
-    ];
+  async function deployContract() {
+    const addr1 = 0x8481be8cf9d472ee513aaa850702ee37fe27c063;
+    const addr2 = 0x9a3a60f5aee7aef1fb0d4da8534452a2e2a89d46;
+    const addr3 = 0xf5ab70ada82e7260a4e09d79b8e09bd2fc08970c;
+
+    await helpers.impersonateAccount(addr1, addr2, addr3);
 
     // Compute merkle tree for airdrop list
     const merkleTree = StandardMerkleTree.of(airdropList, [
