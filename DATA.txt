@@ -1,0 +1,20 @@
+BAYC TOKEN HOLDER = 0x8481bE8cf9D472ee513AAA850702EE37fE27c063
+Merkle Root: 0xd3070a25dc8ae155aef69939f43d6c47781a7e4f26000f9427267d135e0a8ce8
+SuperFranky Token: 0x4c9B6c64664314D18C2cD05bF3FE31534c705C99
+
+Deploying [ NFTairdropModule ]
+
+Batch #1
+  Executed NFTairdropModule#MerkleAirdrop
+
+[ NFTairdropModule ] successfully deployed 🚀
+
+Deployed Addresses
+
+NFTairdropModule#MerkleAirdrop - 0xd0aeB16240ee40B671Bf368b541E63dDEfE9345B
+
+Verifying deployed contracts
+
+Verifying contract "contracts/Airdrop.sol:MerkleAirdrop" for network lisk-sepolia...
+Successfully verified contract "contracts/Airdrop.sol:MerkleAirdrop" for network lisk-sepolia:
+  - https://sepolia-blockscout.lisk.com//address/0xd0aeB16240ee40B671Bf368b541E63dDEfE9345B#code
