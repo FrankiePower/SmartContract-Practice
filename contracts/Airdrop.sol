@@ -3,67 +3,57 @@ pragma solidity ^0.8.24;
 
 import "@openzeppelin/contracts/utils/cryptography/MerkleProof.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 
-/** 
- * @title MerkleAirdrop
- * @dev This contract is used for claiming airdrops using merkle proofs. It supports ERC20 tokens and uses the OpenZeppelin library for MerkleProof verification.
-*/
-contract MerkleAirdrop {
+contract MerkleAirdrop is Ownable {
 
     bytes32 public merkleRoot;
-    address public token;
-    address owner;
+    IERC20 public tokenAddress;
+    address public constant BAYC_ADDRESS = 0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D;
+
     
-    constructor(address _tokenAddress, bytes32 _merkleRoot) {
-        token = _tokenAddress;
+    constructor(IERC20 _tokenAddress, bytes32 _merkleRoot)Ownable(msg.sender) {
+        tokenAddress = _tokenAddress;
         merkleRoot = _merkleRoot;
-        owner = msg.sender;
     }
     
     mapping(address => bool) public hasClaimed;
-    event AirdropClaimed(address indexed claimer, uint256 amount);
+    event AirdropClaimed(address indexed claimedAccount, uint256 amount);
 
-    modifier onlyOwner {
-        require(owner == msg.sender);
-        _;
-    }
 
-    /**
-        @notice This function allows an account to claim airdrop tokens.
-        @dev The claiming process involves verifying the user's eligibility using Merkle proofs, 
-            and then transferring the specified amount of tokens to the user if they are validated.
-        @param _amount The amount of tokens to be claimed by the caller.
-        @param proof An array of bytes32 values that represent a merkle proof proving the claimer's eligibility.
-    */
-    function claim(uint256 _amount, bytes32[] calldata proof) public {
+    function claim(uint256 _amount, bytes32[] calldata merkleProof) external {
 
         require(!hasClaimed[msg.sender], "Airdrop already claimed");
 
+        require(IERC721(BAYC_ADDRESS).balanceOf(msg.sender) > 0, "Must own a BAYC NFT");
+
         bytes32 leaf = keccak256(bytes.concat(keccak256(abi.encode(msg.sender, _amount))));
 
-        require(MerkleProof.verify(proof, merkleRoot, leaf), "Invalid proof");
+        require(MerkleProof.verify(merkleProof, merkleRoot, leaf), "Invalid proof");
 
         hasClaimed[msg.sender] = true; // Mark address as having claimed
 
-        IERC20(token).transfer(msg.sender, _amount);
+        IERC20(tokenAddress).transfer(msg.sender, _amount);
+
         emit AirdropClaimed(msg.sender, _amount);
 
     }
 
     // This function is userd to update the merkleRoot of the contract, callable only by the owner
-    function updateMerkleRoot(bytes32 newRoot) external onlyOwner {
+    function updateMerkleRoot(bytes32 newRoot) external {
         merkleRoot = newRoot;
     }
 
     // Function to withdraw remaining airdrop tokens. callable only by owner.
-    function withdrawTokens(uint256 _amount) external onlyOwner {
+    function withdrawTokens(uint256 _amount) external  {
         // uint256 balance = IERC20(token).balanceOf(address(this));
-        require(IERC20(token).transfer(msg.sender, _amount), "Withdraw failed.");
+        require(IERC20(tokenAddress).transfer(msg.sender, _amount), "Withdraw failed.");
     }
 
     function getContractBalance() external view onlyOwner returns(uint256) {
-        return IERC20(token).balanceOf(address(this));
+        return IERC20(tokenAddress).balanceOf(address(this));
     }
 
 }
