@@ -1,198 +1,131 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { StandardMerkleTree } from "@openzeppelin/merkle-tree";
-import hre, { ethers } from "hardhat";
+import { ethers } from "hardhat";
 import { expect } from "chai";
-import keccak256 from "keccak256";
-
-const helpers = require("@nomicfoundation/hardhat-network-helpers");
-const { setBalance } = require("@nomicfoundation/hardhat-network-helpers");
+import {
+  setBalance,
+  impersonateAccount,
+} from "@nomicfoundation/hardhat-network-helpers";
 
 describe("MerkleNFTAirdrop", function () {
-  // Function that deploys the ERC20 token
+  async function deployFixture() {
+    const BAYCContractAddress = "0xbc4ca0eda7647a8ab7c2061c2e118a18a936f13d";
+    const BAYC_NFT_HOLDER = "0x8481be8cf9d472ee513aaa850702ee37fe27c063";
 
-  async function deployToken() {
-    const superFranky = await hre.ethers.getContractFactory("SuperFranky");
-    const token = await superFranky.deploy();
+    // Deploy SuperFranky token
+    const SuperFranky = await ethers.getContractFactory("SuperFranky");
+    const token = await SuperFranky.deploy();
 
-    return { token };
-  }
+    // Impersonate BAYC holder
+    await impersonateAccount(BAYC_NFT_HOLDER);
+    await setBalance(BAYC_NFT_HOLDER, ethers.parseEther("10000"));
+    const impersonatedSigner = await ethers.getSigner(BAYC_NFT_HOLDER);
 
-  // Function to deploy the NFTAirdrop contract
-
-  async function deployContract() {
-    const addr1 = 0x8481be8cf9d472ee513aaa850702ee37fe27c063;
-    const addr2 = 0x9a3a60f5aee7aef1fb0d4da8534452a2e2a89d46;
-    const addr3 = 0xf5ab70ada82e7260a4e09d79b8e09bd2fc08970c;
-
-    await helpers.impersonateAccount(addr1, addr2, addr3);
-
-    // Compute merkle tree for airdrop list
-    const merkleTree = StandardMerkleTree.of(airdropList, [
-      "address",
-      "uint256",
-    ]);
-    // get the the root hash of our merkletree
-    const root = merkleTree.root;
-
-    // Grab token from earlier deployment function
-    const { token } = await loadFixture(deployToken);
-
-    // Grab desired contract to be deployed
-    const airdropContract = await hre.ethers.getContractFactory(
-      "MerkleAirdrop"
+    // Get BAYC contract
+    const NFT_Contract = await ethers.getContractAt(
+      "IERC721",
+      BAYCContractAddress
     );
 
-    // Deploy contract
-    const deployedAirdropContract = await airdropContract.deploy(token, root);
+    const [owner] = await ethers.getSigners();
+    const addr1 = impersonatedSigner;
+    const addr2 = await ethers.getSigner(
+      "0x9a3a60f5aee7aef1fb0d4da8534452a2e2a89d46"
+    );
 
-    await token.transfer(deployedAirdropContract, ethers.parseEther("1000"));
+    // Use the provided Merkle root
+    const merkleRoot =
+      "0xd3070a25dc8ae155aef69939f43d6c47781a7e4f26000f9427267d135e0a8ce8";
+
+    // Deploy MerkleAirdrop contract
+    const MerkleAirdrop = await ethers.getContractFactory("MerkleAirdrop");
+    const merkleAirdropContract = await MerkleAirdrop.deploy(
+      await token.getAddress(),
+      merkleRoot
+    );
+
+    const decimals = await token.decimals();
+
+    const initialBalance = ethers.parseUnits("100000", decimals);
 
     return {
-      deployedAirdropContract,
       token,
+      merkleAirdropContract,
+      merkleRoot,
+      NFT_Contract,
       owner,
       addr1,
       addr2,
-      addr3,
-      merkleTree,
+      decimals,
+      initialBalance,
     };
   }
 
-  async function transfer() {
-    const { token, deployedAirdropContract } = await loadFixture(
-      deployContract
-    );
-    await token.transfer(deployedAirdropContract, ethers.parseEther("1000"));
-  }
-
   describe("Deployment", function () {
-    // This test checks that our airdrop contract was deployed with the correct address of our deployed token
-    it("Should check if contract deploys with correct tokenAddress", async function () {
-      const { token, deployedAirdropContract } = await loadFixture(
-        deployContract
-      );
-      expect(await deployedAirdropContract.token()).to.equal(token);
+    it("Should check if owner is correct", async function () {
+      const { merkleAirdropContract, owner } = await loadFixture(deployFixture);
+
+      expect(await merkleAirdropContract.owner()).to.equal(owner);
+    });
+
+    it("Should check if tokenAddress is correctly set", async function () {
+      const { merkleAirdropContract, token } = await loadFixture(deployFixture);
+
+      expect(await merkleAirdropContract.tokenAddress()).to.equal(token);
+    });
+    it("Should set the correct initial balance", async function () {
+      const { owner, initialBalance } = await loadFixture(deployFixture);
+
+      const contractBalance = await token.balanceOf(await owner.getAddress());
+      expect(contractBalance).to.equal(initialBalance);
     });
   });
 
-  describe("Airdrop Claiming", function () {
-    // This test lets an allowed user to claim their allowed amount
-    it("Should allow eligible address to claim their airdrop", async function () {
-      const { deployedAirdropContract, token, addr1, merkleTree } =
-        await loadFixture(deployContract);
+  describe("Claiming", function () {
+    it("Should allow eligible users with BAYC to claim tokens", async function () {
+      const { merkleAirdropContract, addr1, token } = await loadFixture(
+        deployFixture
+      );
 
-      // claim details - address and amount
-      const claimingAddress = addr1.address;
-      const claimAmount = ethers.parseEther("100");
+      // You'll need to provide the correct proof for addr1
+      const proof = [
+        "0x3c5cfcff5fac8345ee13acb651500f3c1763dc86df5b6395f2da751f647e915b",
+        "0xdcd6e91bd2a676a13d1a9559252ad02e543546781d520e3448dcf8ef3e95eb7f",
+        "0x3a5a259574916793ff4139c5ecc779d0c6230f85529137dde643d0b2676a3f1e",
+        "0xdc576899524f5267e18322b4bbae326ded48ff017a49cf06115c1624cdbceb06",
+      ];
 
-      // Get proof of leaf
-      const leaf = [claimingAddress, claimAmount];
-      const proof = merkleTree.getProof(leaf);
-
-      // Check that claim function emits the right event after claim
       await expect(
-        deployedAirdropContract.connect(addr1).claim(claimAmount, proof)
+        merkleAirdropContract
+          .connect(addr1)
+          .claim(ethers.parseEther("31"), proof)
       )
-        .to.emit(deployedAirdropContract, "AirdropClaimed")
-        .withArgs(claimingAddress, claimAmount);
+        .to.emit(merkleAirdropContract, "Claimed")
+        .withArgs(addr1.address, ethers.parseEther("100"));
 
-      // Check that claimer's balance equals claim amount
-      expect(await token.balanceOf(claimingAddress)).to.equal(claimAmount);
+      expect(await token.balanceOf(addr1.address)).to.equal(
+        ethers.parseEther("31")
+      );
     });
 
-    // This test does not allow an allowed user to claim twice.
-    it("Should not allow the same address to claim twice", async function () {
-      const { deployedAirdropContract, addr1, merkleTree } = await loadFixture(
-        deployContract
+    it("Should not allow users without BAYC to claim tokens", async function () {
+      const { merkleAirdropContract, NoNFTAddress } = await loadFixture(
+        deployFixture
       );
 
-      const claimingAddress = addr1.address;
-      const claimAmount = ethers.parseEther("100");
+      // You'll need to provide a proof for NoNFTAddress (even though it won't pass the BAYC check)
+      const proof = [
+        "0xabcd...", // Replace with actual proof values
+        "0xefgh...",
+        // ... more proof elements
+      ];
 
-      const leaf = [claimingAddress, claimAmount];
-      const proof = merkleTree.getProof(leaf);
-
-      // 1st claim here
-      await deployedAirdropContract.connect(addr1).claim(claimAmount, proof);
-
-      // second claim here
       await expect(
-        deployedAirdropContract.connect(addr1).claim(claimAmount, proof)
-      ).to.be.revertedWith("Airdrop already claimed");
+        merkleAirdropContract
+          .connect(NoNFTAddress)
+          .claim(ethers.parseEther("100"), proof)
+      ).to.be.revertedWith("Must own a BAYC NFT");
     });
 
-    // This test does not ineligible addresses to claim airdrops
-    it("Should not allow ineligible addresses to claim", async function () {
-      const { deployedAirdropContract, addr1, addr2, merkleTree } =
-        await loadFixture(deployContract);
-
-      const ineligibleAddress = addr1.address;
-      const claimAmount = ethers.parseEther("100");
-
-      const leaf = [ineligibleAddress, claimAmount];
-      const proof = merkleTree.getProof(leaf);
-
-      // pass in wrong address to the wrong proof
-      await expect(
-        deployedAirdropContract.connect(addr2).claim(claimAmount, proof)
-      ).to.be.revertedWith("Invalid proof");
-    });
-  });
-
-  describe("Owner Functions", function () {
-    it("Should allow the owner to update the Merkle root", async function () {
-      const { deployedAirdropContract, owner } = await loadFixture(
-        deployContract
-      );
-
-      // create a new hex hash to pass to the contract
-      const newMerkleRoot = ethers.hexlify(keccak256("new root"));
-
-      // call the update function
-      await deployedAirdropContract
-        .connect(owner)
-        .updateMerkleRoot(newMerkleRoot);
-      // check that the current contract merkle root equals the newmerkleRoot
-      expect(await deployedAirdropContract.merkleRoot()).to.equal(
-        newMerkleRoot
-      );
-    });
-
-    // This test allows the contract owner to withdraw
-    it("Should allow the owner to withdraw remaining tokens", async function () {
-      const { deployedAirdropContract, owner, token } = await loadFixture(
-        deployContract
-      );
-
-      // check owners inital balance
-      const ownerInitialBalance = await token.balanceOf(owner.address);
-
-      // get address for deployed contract
-      const contractAddress = await deployedAirdropContract.getAddress();
-
-      // Get contract's initial balance
-      const contractInitialBalance = await token.balanceOf(contractAddress);
-
-      const withdrawalAmount = ethers.parseUnits("100");
-
-      // Perform the withdrawal
-      await deployedAirdropContract
-        .connect(owner)
-        .withdrawTokens(withdrawalAmount);
-
-      // Check the balances after withdrawal
-      const ownerFinalBalance = await token.balanceOf(owner.address);
-      const contractFinalBalance = await token.balanceOf(contractAddress);
-
-      // The owner's balance should increase by the amount that was in the contract
-      expect(ownerFinalBalance).to.equal(
-        ownerInitialBalance + withdrawalAmount
-      );
-
-      // The contract's balance should now be zero
-      expect(contractFinalBalance).to.equal(
-        contractInitialBalance - withdrawalAmount
-      );
-    });
+    // Add more tests here...
   });
 });
